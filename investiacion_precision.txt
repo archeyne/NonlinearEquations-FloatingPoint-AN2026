@@ -1,0 +1,96 @@
+Aquí tienes una investigación detallada y rigurosa sobre el impacto de la precisión en punto flotante (`Float16`, `Float32`, `Float64`) sobre los métodos de Newton y de la Secante, diseñada para fundamentar el trabajo teórico y los experimentos numéricos de la tarea.
+
+---
+
+### 1. Marco de la Aritmética de Punto Flotante (`Float16`, `Float32`, `Float64`)
+
+La representación de números en computadores mediante la norma IEEE 754 impone limitaciones de rango y precisión determinadas por el número de bits asignados a la mantisa y al exponente:
+
+*   **`Float16` (Media precisión / Half Precision):** Utiliza 1 bit de signo, 5 bits de exponente y 10 bits de mantisa (11 bits efectivos). Su precisión relativa o épsilon de máquina es \\(\epsilon_{mach} \approx 2^{-11} \approx 9.77 \times 10^{-4}\\).
+*   **`Float32` (Precisión simple / Single Precision / MARC-32):** Utiliza 1 bit de signo, 8 bits de exponente y 23 bits de mantisa (24 bits efectivos). El épsilon de máquina es \\(\epsilon_{mach} = 2^{-23} \approx 1.19 \times 10^{-7}\\) (con redondeo unitario \\(\epsilon = 2^{-24} \approx 5.96 \times 10^{-8}\\)).
+*   **`Float64` (Doble precisión / Double Precision):** Utiliza 1 bit de signo, 11 bits de exponente y 52 bits de mantisa (53 bits efectivos). El épsilon de máquina es \\(\epsilon_{mach} = 2^{-52} \approx 2.22 \times 10^{-16}\\) (redondeo unitario \\(\epsilon = 2^{-53} \approx 1.11 \times 10^{-16}\\)).
+
+---
+
+### 2. Comportamiento Teórico de los Métodos (Raíz Simple vs. Raíz Múltiple)
+
+#### A. Método de Newton Estándar (\\(x_{n+1} = x_n - \frac{f(x_n)}{f'(x_n)}\\))
+*   **Raíz simple (\\(k=1\\), \\(f'(r) \neq 0\\)):** Presenta **convergencia cuadrática**. El error en el paso \\(n+1\\) satisface:
+    \\[e_{n+1} \approx \frac{1}{2} \frac{f''(r)}{f'(r)} e_n^2\\]
+    Esto significa que el número de dígitos decimales correctos aproximadamente se duplica en cada iteración.
+*   **Raíz múltiple (\\(k > 1\\), \\(f(r)=f'(r)=\dots=f^{(k-1)}(r)=0 \neq f^{(k)}(r)\\)):** Al anularse la derivada en la raíz (\\(f'(r) = 0\\)), el método **pierde la convergencia cuadrática y se degrada a convergencia lineal**. El comportamiento asintótico del error es:
+    \\[e_{n+1} \approx \left(1 - \frac{1}{k}\right) e_n\\]
+    Para una raíz doble (\\(k=2\\)), \\(e_{n+1} \approx \frac{1}{2} e_n\\), por lo que Newton se vuelve tan lento como el método de bisección.
+
+#### B. Método de Newton Modificado (\\(x_{n+1} = x_n - k \frac{f(x_n)}{f'(x_n)}\\))
+*   Si se conoce la multiplicidad \\(k > 1\\), la modificación introduciendo el factor \\(k\\) **restablece completamente la convergencia cuadrática**.
+*   **Demostración mediante Taylor:** Expandiendo \\(f(x_n)\\) y \\(f'(x_n)\\) alrededor de \\(r\\) con \\(x_n = r + e_n\\):
+    \\[f(r+e_n) = \frac{f^{(k)}(r)}{k!} e_n^k + \frac{f^{(k+1)}(\xi_n)}{(k+1)!} e_n^{k+1}\\]
+    \\[f'(r+e_n) = \frac{f^{(k)}(r)}{(k-1)!} e_n^{k-1} + \frac{f^{(k+1)}(\zeta_n)}{k!} e_n^k\\]
+    Sustituyendo en \\(e_{n+1} = e_n - k \frac{f(x_n)}{f'(x_n)}\\) y simplificando el cociente algebraico, los términos de orden \\(e_n\\) se cancelan:
+    \\[e_{n+1} \approx \left[ \frac{f^{(k+1)}(r)}{(k+1) f^{(k)}(r)} \right] e_n^2\\]
+    Lo que confirma la recuperación del orden de convergencia cuadrático.
+
+#### C. Método de la Secante (\\(x_{n+1} = x_n - \frac{x_n - x_{n-1}}{f(x_n) - f(x_{n-1})} f(x_n)\\))
+*   **Raíz simple (\\(k=1\\)):** Posee **convergencia superlineal** con orden de convergencia \\(\alpha = \frac{1+\sqrt{5}}{2} \approx 1.618\\):
+    \\[|e_{n+1}| \approx C |e_n|^{1.618}\\].
+*   **Raíz múltiple (\\(k > 1\\)):** Pierde la convergencia superlineal y **se degrada a convergencia lineal**.
+
+---
+
+### 3. Fenómenos Computacionales en Aritmética de Punto Flotante
+
+Cuando estos métodos teóricos se ejecutan en computadores con precisión finita (`Float16`, `Float32`, `Float64`), se presentan tres efectos computacionales críticos:
+
+#### A. La Barrera Numérica de Precisión para Raíces Múltiples (\\(\epsilon^{1/k}\\))
+Cerca de una raíz de multiplicidad \\(k\\), la función se comporta localmente como \\(f(x) \approx C (x-r)^k\\). 
+Para que \\(f(x_n)\\) sea un número no nulo y calculable dentro de la precisión de la máquina, se requiere que \\(|f(x_n)| \gtrsim \epsilon_{mach}\\).
+Por lo tanto, la distancia mínima o error alcanzable en la raíz \\(|x_n - r|\\) queda limitada por:
+\\[|x_n - r|_{mín} \approx (\epsilon_{mach})^{1/k}\\]
+
+Esta limitación física impone techos de precisión infranqueables según el formato de dato:
+
+1.  **En una raíz doble (\\(k=2\\)):**
+    *   **`Float16` (\\(\epsilon \approx 10^{-3}\\)):** La máxima precisión alcanzable en \\(x\\) es \\(\approx \sqrt{10^{-3}} \approx 10^{-1.5} \approx 0.03\\). Solo se obtienen entre **1 y 2 dígitos correctos**, sin importar cuántas iteraciones se realicen.
+    *   **`Float32` (\\(\epsilon \approx 10^{-7}\\)):** La precisión máxima es \\(\approx \sqrt{10^{-7}} \approx 10^{-3.5} \approx 0.0003\\). Se pierde la mitad de la precisión del tipo de dato.
+    *   **`Float64` (\\(\epsilon \approx 10^{-16}\\)):** La precisión máxima es \\(\approx \sqrt{10^{-16}} = 10^{-8}\\) (solo 8 dígitos correctos de los 16 posibles).
+2.  **En una raíz triple (\\(k=3\\)):**
+    *   En **`Float64`**, el error se estanca en \\((10^{-16})^{1/3} \approx 10^{-5.3}\\) (solo ~5 dígitos exactos).
+
+#### B. Cancelación Substractiva y Ruido Numérico
+Al evaluar \\(f(x_n)\\) en las inmediaciones de la raíz, se sustraen cantidades casi idénticas. Esto destruye los dígitos significativos más importantes (cancelación catastrófica). Las evaluaciones de \\(f(x)\\) y \\(f'(x)\\) dejan de reflejar la función matemática suave y pasan a devolver **ruido flotante aleatorio**.
+
+#### C. Inestabilidad por Derivada Pequeña (\\(f'(x_n) \approx 0\\))
+En la división \\(\frac{f(x_n)}{f'(x_n)}\\):
+*   Si \\(f'(x_n)\\) es pequeño, cualquier pequeño error de redondeo en \\(f(x_n)\\) se amplifica por el factor \\(1/f'(x_n)\\).
+*   Esto provoca que el método de Newton o de la Secante dé pasos gigantescos y erráticos, entrando en un **plato de ruido (noise plateau)** alrededor de la raíz.
+*   Si \\(f'(x_n)\\) decae hasta subdesbordarse (*underflow*) o evaluarse exactamente como `0.0`, el código falla por división por cero (`Inf` / `NaN`).
+
+---
+
+### 4. Cuadro Comparativo de Desempeño
+
+| Criterio | Newton Estándar | Newton Modificado (\\(k\\) conocido) | Método de la Secante |
+| :--- | :--- | :--- | :--- |
+| **Orden Teórico (\\(k=1\\))** | Cuadrático (\\(\alpha=2\\)) | Cuadrático (\\(\alpha=2\\)) | Superlineal (\\(\alpha \approx 1.618\\)) |
+| **Orden Teórico (\\(k>1\\))** | Lineal (\\(1 - 1/k\\)) | **Cuadrático (\\(\alpha=2\\))** | Lineal |
+| **Evaluaciones por paso** | 2 (\\(f\\) y \\(f'\\)) | 2 (\\(f\\) y \\(f'\\)) | **1 (\\(f\\))** |
+| **Sensibilidad a \\(f' \approx 0\\)** | Alta | Alta (amplificada por \\(k\\)) | Moderada |
+| **Límite de Error (\\(k=2\\), Float16)** | \\(\approx 10^{-1.5} \approx 0.03\\) | \\(\approx 10^{-1.5} \approx 0.03\\) | \\(\approx 10^{-1.5} \approx 0.03\\) |
+| **Límite de Error (\\(k=2\\), Float32)** | \\(\approx 10^{-3.5} \approx 0.0003\\) | \\(\approx 10^{-3.5} \approx 0.0003\\) | \\(\approx 10^{-3.5} \approx 0.0003\\) |
+| **Límite de Error (\\(k=2\\), Float64)** | \\(\approx 10^{-8}\\) | \\(\approx 10^{-8}\\) | \\(\approx 10^{-8}\\) |
+
+---
+
+### 5. Sugerencias para los Experimentos del Grupo
+
+1.  **Elección de Funciones de Prueba Ilustrativas:**
+    *   *Raíz simple con derivada pequeña:* \\(f(x) = \arctan(x)\\) con \\(x_0 \approx 1.39\\) (cerca del límite de divergencia) o \\(f(x) = e^x - 1 - x\\) cerca de \\(x=0\\).
+    *   *Raíz múltiple (\\(k=2\\)):* \\(f(x) = (x-1)^2 \cos(x)\\) en \\(x=1\\), o \\(f(x) = x^2\\).
+    *   *Polinomio expandido:* \\(P(x) = (x-1)^4 = x^4 - 4x^3 + 6x^2 - 4x + 1\\), donde la cancelación sustractiva genera oscilaciones caóticas alrededor de \\(x=1\\).
+2.  **Configuración de Tolerancias:**
+    *   Explicar en el informe por qué exigir tolerancias de residuo extremadamente pequeñas (ej. \\(|f(x)| < 10^{-12}\\)) provoca **bucles infinitos** en `Float16` o `Float32`, o en `Float64` con \\(k > 1\\). Los criterios de parada deben adaptarse a la precisión del tipo de dato (\\(\delta \approx \sqrt{\epsilon_{mach}}\\) cuando \\(k=2\\)).
+
+---
+
+¿Te gustaría que te ayude a armar un script básico de prueba en **Julia** o **Python** que ejecute estas tres variaciones en los tres formatos de precisión (`Float16`, `Float32`, `Float64`) para generar las tablas numéricas de tu informe?
